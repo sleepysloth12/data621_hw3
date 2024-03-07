@@ -1,0 +1,110 @@
+---
+title: "Data 621 HW#3"
+author: "Group 3"
+date: "2024-03-07"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Logistic Regression of Crime Data
+
+## Training-Data Exploration
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(gt)
+library(tidyr)
+```
+
+```{r}
+
+train_dat=read.csv(url("https://raw.githubusercontent.com/sleepysloth12/data621_hw3/main/crime-training-data_modified.csv"))
+
+summary_stats = train_dat %>%
+  summarise(
+    Mean_ZN = mean(zn, na.rm = TRUE),
+    SD_ZN = sd(zn, na.rm = TRUE),
+    Median_ZN = median(zn, na.rm = TRUE),
+    Mean_INDUS = mean(indus, na.rm = TRUE),
+    SD_INDUS = sd(indus, na.rm = TRUE),
+    Median_INDUS = median(indus, na.rm = TRUE),
+    Mean_CHAS = mean(chas, na.rm = TRUE),
+    SD_CHAS = sd(chas, na.rm = TRUE),
+    Median_CHAS = median(chas, na.rm = TRUE),
+    Mean_NOX = mean(nox, na.rm = TRUE),
+    SD_NOX = sd(nox, na.rm = TRUE),
+    Median_NOX = median(nox, na.rm = TRUE),
+    Mean_RM = mean(rm, na.rm = TRUE),
+    SD_RM = sd(rm, na.rm = TRUE),
+    Median_RM = median(rm, na.rm = TRUE),
+    Mean_AGE = mean(age, na.rm = TRUE),
+    SD_AGE = sd(age, na.rm = TRUE),
+    Median_AGE = median(age, na.rm = TRUE),
+    Mean_DIS = mean(dis, na.rm = TRUE),
+    SD_DIS = sd(dis, na.rm = TRUE),
+    Median_DIS = median(dis, na.rm = TRUE),
+    Mean_RAD = mean(rad, na.rm = TRUE),
+    SD_RAD = sd(rad, na.rm = TRUE),
+    Median_RAD = median(rad, na.rm = TRUE),
+    Mean_TAX = mean(tax, na.rm = TRUE),
+    SD_TAX = sd(tax, na.rm = TRUE),
+    Median_TAX = median(tax, na.rm = TRUE),
+    Mean_PTRATIO = mean(ptratio, na.rm = TRUE),
+    SD_PTRATIO = sd(ptratio, na.rm = TRUE),
+    Median_PTRATIO = median(ptratio, na.rm = TRUE),
+    Mean_LSTAT = mean(lstat, na.rm = TRUE),
+    SD_LSTAT = sd(lstat, na.rm = TRUE),
+    Median_LSTAT = median(lstat, na.rm = TRUE),
+    Mean_MEDV = mean(medv, na.rm = TRUE),
+    SD_MEDV = sd(medv, na.rm = TRUE),
+    Median_MEDV = median(medv, na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), names_to = "Statistic", values_to = "Value") %>%
+  separate(Statistic, into = c("Measure", "Variable"), sep = "_") %>%
+  pivot_wider(names_from = Measure, values_from = Value) %>%
+  select(Variable, Mean, SD, Median) %>%
+  mutate(Variable = case_when(
+    Variable == "ZN" ~ "Proportion of residential land zoned",
+    Variable == "INDUS" ~ "Proportion of non-retail business acres",
+    Variable == "CHAS" ~ "Charles River dummy variable",
+    Variable == "NOX" ~ "Nitrogen oxides concentration",
+    Variable == "RM" ~ "Average number of rooms per dwelling",
+    Variable == "AGE" ~ "Proportion of units built pre-1940",
+    Variable == "DIS" ~ "Weighted distances to employment centres",
+    Variable == "RAD" ~ "Accessibility to radial highways",
+    Variable == "TAX" ~ "Property-tax rate per $10,000",
+    Variable == "PTRATIO" ~ "Pupil-teacher ratio by town",
+    Variable == "LSTAT" ~ "Lower status of the population (%)",
+    Variable == "MEDV" ~ "Median value of owner-occupied homes",
+    TRUE ~ Variable
+  ))
+
+summary_stats %>%
+  gt() %>%
+  tab_header(
+    title = "Summary Statistics of Predictor Variables"
+  ) %>%
+  cols_label(
+    Variable = "Variable",
+    Mean = "Mean",
+    SD = "Standard Deviation",
+    Median = "Median"
+  )
+```
+
+```{r}
+train_dat_long = train_dat %>%
+  select(-chas, -target) %>%  
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
+
+ggplot(train_dat_long, aes(x = Value)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+  facet_wrap(~ Variable, scales = "free", ncol = 3) + 
+  theme_minimal() +
+  labs(title = "Distribution of Predictor Variables", x = "Value", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
