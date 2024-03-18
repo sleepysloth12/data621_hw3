@@ -20,6 +20,8 @@ library(gt)
 library(tidyr)
 ```
 
+### Summary Stats
+
 ```{r}
 
 train_dat=read.csv(url("https://raw.githubusercontent.com/sleepysloth12/data621_hw3/main/crime-training-data_modified.csv"))
@@ -107,4 +109,65 @@ ggplot(train_dat_long, aes(x = Value)) +
   theme_minimal() +
   labs(title = "Distribution of Predictor Variables", x = "Value", y = "Count") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Correlation Matrix
+
+```{r}
+correlation_matrix = cor(train_dat)
+
+target_correlation = correlation_matrix["target", ]
+print(target_correlation)
+```
+
+`zn` has a negative correlation with the crime rate (-0.43168176). This suggests that neighborhoods with more large-lot residential land tend to have lower crime rates. More spacious areas, possibly with fewer people packed in, might see less crime.
+
+`indus` is positively correlated with crime (0.60485074). This one's interesting because it implies that more industrial areas tend to have higher crime rates. Maybe it's because these areas are less residential.
+
+The `chas` variable shows a small positive correlation with crime (0.08004187). Honestly, it's so slight that it might not mean much.
+
+`nox` has a strong positive correlation with crime (0.72610622). Areas with higher pollution levels ,also see higher crime rates. Pollution and crime are correlated.
+
+`rm` shows a slight negative correlation with crime (-0.15255334). It suggests that neighborhoods with larger homes, tend to have slightly lower crime rates. But it's not a very strong relationship.
+
+`age`, is positively correlated with crime (0.63010625). This suggests older neighborhoods might see more crime.
+
+`dis`, has a negative correlation with crime (-0.61867312). The further away from employment centers, the lower the crime rate.
+
+`rad`, and `tax` both have strong positive correlations with crime (0.62810492 and 0.61111331, respectively). More accessible areas and those with higher taxes are associated with higher crime rates. Mayve more accessible areas see more traffic, leading to more crime.
+
+`ptratio`, shows a slight positive correlation with crime (0.25084892), suggesting that schools with more students per teacher might see slightly higher crime rates.
+
+`lstat` is significantly positively correlated with crime (0.46912702). This mean that areas with a higher percentage of lower-status residents have higher crime rates. This makes sense because we know that socio-economic factors influence crime and most crimes are in fact just crimes of poverty.
+
+`medv` is negatively correlated with crime (-0.27055071). Wealthier areas tend to have lower crime rates.
+
+#### Variables to Exclude 
+
+1.  **`zn` (-0.43168176):** While negatively correlated with crime, there is potential overlap with `indus` and `nox` in describing urban vs. suburban characteristics.
+2.  **`chas` (0.08004187):** The low correlation with the crime rate suggests it may not be a strong predictor of crime.
+3.  **`rm` (-0.15255334):** Given its weak negative correlation with crime, it may not add much predictive power.
+4.  **`ptratio` (0.25084892):** While there's some positive correlation, it’s relatively weak compared to others.
+5.  **`medv` (-0.27055071):** Although negatively correlated, if choosing between `medv` and stronger predictors like `lstat` for socio-economic status, `lstat` might be the more impactful.
+
+### 
+
+```{r}
+
+colSums(is.na(train_dat))
+```
+
+There is no missing data.
+
+### Creating New Variables
+
+-   **`tmr` (`tax`/`medv`):** This could provide a measure of the tax burden relative to property values.
+
+-   **`rmlstat` (`rm`/`lstat`):** A higher ratio might indicate areas with more spacious living conditions but also a higher proportion of lower socio-economic status.
+
+```{r}
+train_dat = train_dat %>%
+  mutate(tmr=tax/medv,
+         rmlstat=rm/lstat)%>%
+  select(-zn, -chas, -rm, -ptratio, -lstat, -medv)
 ```
