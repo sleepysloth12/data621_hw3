@@ -171,3 +171,107 @@ train_dat = train_dat %>%
          rmlstat=rm/lstat)%>%
   select(-zn, -chas, -rm, -ptratio, -lstat, -medv)
 ```
+
+## Part 2: Data Preparation
+
+With the newly created variables, I am going reexamine the distributions.
+
+```{r}
+data_for_hist <- train_dat %>%
+  select(-c(target)) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
+
+ggplot(data_for_hist, aes(x = Value)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+  facet_wrap(~ Variable, scales = "free", ncol = 3) + 
+  theme_minimal() +
+  labs(title = "Distribution of Predictor Variables", x = "Value", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+Notes:
+
+* "age" is left-skewed
+* "dis" is right-skewed
+* "rmlstat" is right-skewed
+* "tmr" is right-skewed
+
+I will try a Box-Cox transformation on the variables that have positive skew:    
+"tmr," "rmlstat," and "dis," as they all have a positive skew.
+
+#### Box Cox Confidence Interval: tmr
+
+```{r}
+b = MASS::boxcox(lm(train_dat$tmr ~ 1))
+```
+
+#### Lambda Value: tmr
+
+```{r}
+lambda = b$x[which.max(b$y)]
+print(lambda)
+```
+
+This box cox diagnostic test is interesting because it suggests that a log 
+transformation would actually not be the best transformation to run on the variable
+"tmr" and instead that a transformation of $\frac{1}{\sqrt x}$ would be best.
+
+```{r}
+train_dat$tmr_transformed = 1/sqrt(train_dat$tmr)
+```
+
+#### Box Cox Confidence Interval: dis
+
+```{r}
+b = MASS::boxcox(lm(train_dat$dis ~ 1))
+```
+
+#### Lambda Value: dis
+
+```{r}
+lambda = b$x[which.max(b$y)]
+print(lambda)
+```
+
+This box cox diagnostic test is interesting because it suggests that a log 
+transformation would be a good transformation to try on the variable "dis"
+
+```{r}
+train_dat$dis_transformed = log(train_dat$dis)
+```
+
+#### Box Cox Confidence Interval: rmlstat
+
+```{r}
+b = MASS::boxcox(lm(train_dat$rmlstat ~ 1))
+```
+
+#### Lambda Value: rmlstat
+
+```{r}
+lambda = b$x[which.max(b$y)]
+print(lambda)
+```
+
+This box cox diagnostic test is interesting because it suggests that a log 
+transformation would actually not be the best transformation to run on the variable
+"rmlstat" and instead that a transformation of $\frac{1}{\sqrt x}$ would be best.
+
+```{r}
+train_dat$rmlstat_transformed = 1/sqrt(train_dat$rmlstat)
+```
+
+#### Checking the new distributions:
+
+```{r}
+data_for_hist <- train_dat %>%
+  select(-c(target)) %>%
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
+
+ggplot(data_for_hist, aes(x = Value)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.7) +
+  facet_wrap(~ Variable, scales = "free", ncol = 3) + 
+  theme_minimal() +
+  labs(title = "Distribution of Predictor Variables", x = "Value", y = "Count") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
