@@ -18,6 +18,7 @@ library(dplyr)
 library(ggplot2)
 library(gt)
 library(tidyr)
+library(MASS)
 ```
 
 ### Summary Stats
@@ -329,3 +330,52 @@ train_dat$tax_greater_600 = ifelse(train_dat$tax > 600, 1.0, 0.0)
 Both of these sets of dummies variables were created entirely base off of the 
 individual distributions, there may be external knowledge which could have provided 
 separate bucket thresholds; however, that is not how these variables were defined.
+
+Now that we have explored these data, let's move on to building appropriate logistic regression models. To start, I will fit a full regression model, and use AIC criteria to determine some of the best fitting models. First, however, I will separate the dataset by the transformed and non-transformed variables, in order to more easily partition the models 
+
+```{r}
+train_orig <- subset(train_dat, select = -c(tmr_transformed:tax_greater_600))
+train_transform <- subset(train_dat, select = -c(dis, tmr, rmlstat, rad_leq_10:tax_greater_600))
+train_dummy <- subset(train_dat, select = -c(rad, tax, dis, tmr, rmlstat))
+
+
+full_model_orig <- glm(target ~ ., data = train_orig, family = binomial)
+```
+
+Now, let's create some models and see which would produce the best fitting models based on AIC stepwise algorithms. I decided to go this route because stepwise models are able to quickly and efficiently generate reliable regression models based on generating the lowest possible AIC criteria. For these models, I will have the alogrithms perform both forward selection and backwards elimination.
+
+```{r}
+full_model_orig <- glm(target ~ ., data = train_orig, family = binomial)
+
+summary(full_model_orig)
+full_model_trans <- glm(target ~ ., data = train_transform, family = binomial)
+full_model_dummy <- glm(target ~ ., data = train_dummy, family = binomial)
+
+set.seed(12345)
+step_orig <- stepAIC(full_model_orig, direction = c("both"), trace = F)
+summary(step_orig)
+
+step_trans <- stepAIC(full_model_trans, direction = c("both"), trace = F)
+summary(step_trans)
+
+step_dummy <- stepAIC(full_model_dummy, direction = c("both"), trace = F)
+summary(step_dummy)
+```
+
+Based on the stepwise algorithms produced, most models were left with around 5 or 6 predictors. Our first model (using the original, non-transformed variables) demonstrated that nitrogen oxide concentration, the proportion of older occupied units, and the accessibility of radial highways significantly positively predicted an increased log likelihood  of crime occurring. However, increases in taxation significantly predicted decreases in the likelihood of crime. Distance to employment centers and the likelihood of more spacious living conditions did not significantly predict changes in crime likelihood.
+
+Our second model indicated that nitrogen oxide, the proportion of older occupied units, accessibility of radial highways, and distances from employment centers significantly predicted increases in the likelihood of crime. Similar to our first model, increases in taxation predicted decreases in the likelihood of crime. The result for distance is contrary to our first model, indicating that the normalization procedure employed may have had an effect on the interpretability of that variable within the context of these general linear models.
+
+Finally, our third model only showed significant effects for nitrogen oxide, the proportion of older occupied units, and distance from employment centers. Similar to the first model, the likelihood of living in a spacious living condition did not have a significant effect on crime likelihood. In addition, the dummy variables that were created did not have a significant effect.
+
+Overall, based on the models above, we can consistently see that the presence of nitrogen oxide, increases in the proportion of older occupied units, distance from employment centers, and the accessibility of radial highways all significantly predict increases in the likelihood of crime, whereas increases in taxation predict decreases in the likelihood. 
+
+I believe these results make sense within the context of this dataset. By itself, the presence of older housing units may not be able to explain changes in crime, but it may make sense if we consider the prices of those units, and the average income of the areas in which those domiciles are located. The index of radial highways may indicate an increase in the volume of people passing through a specific area; an increased density of individuals may correspond with increased crime rates. Distance from employment centers may suggest a larger proportion of unemployed individuals within an area, which may lead to increases in crime as a way to alleviate financial burdens; alternatively, this may suggest these areas are lower income in nature, and may have less access to resources and security. Increases in taxation likely suggest regions that are higher income and possess regular access to resources and police precincts that may deter the presence of crime within those areas. Seeing the presence of nitrogen oxide corresponding with the likelihood of crime was interesting; however, some research has indicated that exposure to pollution can lead to increased violent behavior. Alternatively, perhaps exposure to nitrogen oxide can have other sociological implications that predict increases in the likelihood of crime.
+
+While these results do seem to make sense, it is very likely that there are underlying mediating and moderating factors that may better explain these predictions. For instance, it may help to include variables related to access to community resources, education, and security as predictors. These variables are much more likely to offer direct explanations for the trends described in this dataset.
+
+Notes for model selection:
+- Lower AIC tends to be better
+- Higher Null deviance is better
+- Lower Residual Deviance is better
+
