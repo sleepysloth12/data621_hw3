@@ -275,3 +275,57 @@ ggplot(data_for_hist, aes(x = Value)) +
   labs(title = "Distribution of Predictor Variables", x = "Value", y = "Count") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
+
+While the new transformed variables are not perfectly normal, the new transformed
+variables look closer to normal.
+
+I also want to note the distributions of the two variables "rad" and "tax." For 
+both of these variables most of the distribution is concentrated on the lower end 
+and there seems to be a meaningful number of observations on the higher end with
+a gap in the middle of the distribution.
+
+I want just look at the counts of the number of observations for the variable "rad"
+with specific index values by increments of 5 starting with zero.
+
+```{r}
+# Calculate the count of observations in each window
+window_counts <- table(cut(train_dat$rad, breaks = seq(0, max(train_dat$rad) + 5, by = 5)))
+
+# Print the counts
+print(window_counts)
+```
+
+Based on this quick window counts I realize that there is a significant gap between
+high rad index and low rad index (there are no observations with values in between
+a rad index values ten to twenty). I'll go ahead and create dummies that signify a rad
+index value of ten or less and rad greater than twenty. I know this is not an even
+split of the data and it generally matches the pattern that I see.
+
+```{r}
+train_dat$rad_leq_10 = ifelse(train_dat$rad <= 10, 1.0, 0.0)
+train_dat$rad_greater_20 = ifelse(train_dat$rad > 20, 1.0, 0.0)
+```
+
+I am going to run the same analysis for tax; however this time I will make the 
+increments multiples of 100.
+
+```{r}
+# Calculate the count of observations in each window
+window_counts <- table(cut(train_dat$tax, breaks = seq(0, max(train_dat$tax) + 100, by = 100)))
+
+# Print the counts
+print(window_counts)
+```
+
+Now the distribution for "tax" is obviously different and it is still important to
+note that we have a similar large gap. I am going to create dummies for "tax" 
+observations greater than 600 and "tax" observations less than 500.
+
+```{r}
+train_dat$tax_leq_500 = ifelse(train_dat$tax <= 500, 1.0, 0.0)
+train_dat$tax_greater_600 = ifelse(train_dat$tax > 600, 1.0, 0.0)
+```
+
+Both of these sets of dummies variables were created entirely base off of the 
+individual distributions, there may be external knowledge which could have provided 
+separate bucket thresholds; however, that is not how these variables were defined.
