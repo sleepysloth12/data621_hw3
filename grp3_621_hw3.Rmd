@@ -18,6 +18,12 @@ library(dplyr)
 library(ggplot2)
 library(gt)
 library(tidyr)
+library(MASS)
+library(stats)
+library(caret)
+library(knitr)
+library(glue)
+library(pROC)
 ```
 
 ### Summary Stats
@@ -68,7 +74,7 @@ summary_stats = train_dat %>%
   pivot_longer(everything(), names_to = "Statistic", values_to = "Value") %>%
   separate(Statistic, into = c("Measure", "Variable"), sep = "_") %>%
   pivot_wider(names_from = Measure, values_from = Value) %>%
-  select(Variable, Mean, SD, Median) %>%
+  dplyr::select(Variable, Mean, SD, Median) %>%
   mutate(Variable = case_when(
     Variable == "ZN" ~ "Proportion of residential land zoned",
     Variable == "INDUS" ~ "Proportion of non-retail business acres",
@@ -100,7 +106,7 @@ summary_stats %>%
 
 ```{r}
 train_dat_long = train_dat %>%
-  select(-chas, -target) %>%  
+  dplyr::select(-chas, -target) %>%  
   pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
 
 ggplot(train_dat_long, aes(x = Value)) +
@@ -169,7 +175,7 @@ There is no missing data.
 train_dat = train_dat %>%
   mutate(tmr=tax/medv,
          rmlstat=rm/lstat)%>%
-  select(-zn, -chas, -rm, -ptratio, -lstat, -medv)
+  dplyr::select(-zn, -chas, -rm, -ptratio, -lstat, -medv)
 ```
 
 ## Part 2: Data Preparation
@@ -178,7 +184,7 @@ With the newly created variables, I am going reexamine the distributions.
 
 ```{r}
 data_for_hist <- train_dat %>%
-  select(-c(target)) %>%
+  dplyr::select(-c(target)) %>%
   pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
 
 ggplot(data_for_hist, aes(x = Value)) +
@@ -265,7 +271,7 @@ train_dat$rmlstat_transformed = 1/sqrt(train_dat$rmlstat)
 
 ```{r}
 data_for_hist <- train_dat %>%
-  select(-c(target)) %>%
+  dplyr::select(-c(target)) %>%
   pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
 
 ggplot(data_for_hist, aes(x = Value)) +
@@ -329,3 +335,147 @@ train_dat$tax_greater_600 = ifelse(train_dat$tax > 600, 1.0, 0.0)
 Both of these sets of dummies variables were created entirely base off of the 
 individual distributions, there may be external knowledge which could have provided 
 separate bucket thresholds; however, that is not how these variables were defined.
+
+Now that we have explored these data, let's move on to building appropriate logistic regression models. To start, I will fit a full regression model, and use AIC criteria to determine some of the best fitting models. First, however, I will separate the dataset by the transformed and non-transformed variables, in order to more easily partition the models 
+
+```{r}
+train_orig <- subset(train_dat, select = -c(tmr_transformed:tax_greater_600))
+train_transform <- subset(train_dat, select = -c(dis, tmr, rmlstat, rad_leq_10:tax_greater_600))
+train_dummy <- subset(train_dat, select = -c(rad, tax, dis, tmr, rmlstat))
+
+
+full_model_orig <- glm(target ~ ., data = train_orig, family = binomial)
+```
+
+Now, let's create some models and see which would produce the best fitting models based on AIC stepwise algorithms. I decided to go this route because stepwise models are able to quickly and efficiently generate reliable regression models based on generating the lowest possible AIC criteria. For these models, I will have the alogrithms perform both forward selection and backwards elimination.
+
+```{r}
+full_model_orig <- glm(target ~ ., data = train_orig, family = binomial)
+
+summary(full_model_orig)
+full_model_trans <- glm(target ~ ., data = train_transform, family = binomial)
+full_model_dummy <- glm(target ~ ., data = train_dummy, family = binomial)
+
+set.seed(12345)
+step_orig <- stepAIC(full_model_orig, direction = c("both"), trace = F)
+summary(step_orig)
+
+step_trans <- stepAIC(full_model_trans, direction = c("both"), trace = F)
+summary(step_trans)
+
+step_dummy <- stepAIC(full_model_dummy, direction = c("both"), trace = F)
+summary(step_dummy)
+```
+
+Based on the stepwise algorithms produced, most models were left with around 5 or 6 predictors. Our first model (using the original, non-transformed variables) demonstrated that nitrogen oxide concentration, the proportion of older occupied units, and the accessibility of radial highways significantly positively predicted an increased log likelihood  of crime occurring. However, increases in taxation significantly predicted decreases in the likelihood of crime. Distance to employment centers and the likelihood of more spacious living conditions did not significantly predict changes in crime likelihood.
+
+Our second model indicated that nitrogen oxide, the proportion of older occupied units, accessibility of radial highways, and distances from employment centers significantly predicted increases in the likelihood of crime. Similar to our first model, increases in taxation predicted decreases in the likelihood of crime. The result for distance is contrary to our first model, indicating that the normalization procedure employed may have had an effect on the interpretability of that variable within the context of these general linear models.
+
+Finally, our third model only showed significant effects for nitrogen oxide, the proportion of older occupied units, and distance from employment centers. Similar to the first model, the likelihood of living in a spacious living condition did not have a significant effect on crime likelihood. In addition, the dummy variables that were created did not have a significant effect.
+
+Overall, based on the models above, we can consistently see that the presence of nitrogen oxide, increases in the proportion of older occupied units, distance from employment centers, and the accessibility of radial highways all significantly predict increases in the likelihood of crime, whereas increases in taxation predict decreases in the likelihood. 
+
+I believe these results make sense within the context of this dataset. By itself, the presence of older housing units may not be able to explain changes in crime, but it may make sense if we consider the prices of those units, and the average income of the areas in which those domiciles are located. The index of radial highways may indicate an increase in the volume of people passing through a specific area; an increased density of individuals may correspond with increased crime rates. Distance from employment centers may suggest a larger proportion of unemployed individuals within an area, which may lead to increases in crime as a way to alleviate financial burdens; alternatively, this may suggest these areas are lower income in nature, and may have less access to resources and security. Increases in taxation likely suggest regions that are higher income and possess regular access to resources and police precincts that may deter the presence of crime within those areas. Seeing the presence of nitrogen oxide corresponding with the likelihood of crime was interesting; however, some research has indicated that exposure to pollution can lead to increased violent behavior. Alternatively, perhaps exposure to nitrogen oxide can have other sociological implications that predict increases in the likelihood of crime.
+
+While these results do seem to make sense, it is very likely that there are underlying mediating and moderating factors that may better explain these predictions. For instance, it may help to include variables related to access to community resources, education, and security as predictors. These variables are much more likely to offer direct explanations for the trends described in this dataset.
+
+```{r}
+#Finding log likelihood
+
+log_like_model1 <- logLik(full_model_orig)
+
+log_like_model2 <- logLik(step_orig)
+
+log_like_model3 <- logLik(step_trans)
+
+log_like_model4 <- logLik(step_dummy)
+
+log_like_model1
+log_like_model2
+log_like_model3
+log_like_model4
+```
+
+Notes for model selection:
+- Lower AIC tends to be better
+- Higher Null deviance is better
+- Lower Residual Deviance is better
+
+# Part 4: Model Selection & Validation
+
+Based on the evaluation criteria of the 4 models shown above, it appears that Model 3 (which uses nitrous oxide, age, index of radial highways, property tax rate, and transformed weighted distance to employment centers as predictors) is the best fitting model of the four. We can infer this based on the similar but low AIC and residual deviance criteria value. The Null deviance is relatively the same for all models, so that cannot be a proper basis for our evaluation. However, we can see that the log likelihood value for our first model (the full model) is higher than the other 3 (read: less negative), suggesting potentially better model fit. However, I will take the AIC and deviance values as the primary determinants for model fitness. From what I understand, log likelihood tends to favor more complex models, so that may represent an unavoidable bias as a result of the number of coefficients in the full model compared to the reduced models. Thus, we will select our third model (step_trans) for further evaluation
+
+
+```{r}
+#Making predictions based on the logistic regression model fro our training data (will be used to make a confusion matrix)
+
+scored_target <- predict(step_trans, newdata = train_transform, type = "response")
+
+#Setting a threshold of 0.5
+scored_target <- ifelse(scored_target > .5, 1, 0)
+
+train_pred <- train_transform %>% cbind(scored_target)
+
+
+```
+
+
+```{r}
+#Setting up a confusion matrix
+confusion_matrix <- table(train_pred$scored_target, train_pred$target)
+confusion_matrix_with_totals <- addmargins(confusion_matrix)
+print(kable(confusion_matrix_with_totals, format = "markdown"))
+```
+
+```{r}
+confuse = confusionMatrix(as.factor(train_pred$scored_target), as.factor(train_pred$target), positive = "1")
+
+total <- sum(confuse$table)
+error <- sum(confuse$table) - sum(diag(confuse$table))
+error_rate <- error / total
+
+plot(roc(train_pred$target, train_pred$scored_target), main = "ROC Curve")
+
+auc(train_pred$target, train_pred$scored_target)
+
+print(confuse$table)
+print(glue("classification error rate: {error_rate}"))
+print(glue("accuracy: {confuse$overall[['Accuracy']]}"))
+print(glue("sensitivity: {confuse$byClass[['Sensitivity']]}"))
+print(glue("specificity: {confuse$byClass[['Specificity']]}"))
+print(glue("precision: {confuse$byClass[['Precision']]}"))
+print(glue("F1: {confuse$byClass[['F1']]}"))
+
+
+```
+As we can see, all metrics regarding accuracy, sensitivity, specificity, precision, F1, and the AUC are around .89 - .90, indicating high predictive accuracy for the training dataset. In addition, we can see that the classification error rate is very low, again, indicating that this model is a good fit for these data. However, we will need more evidence to see how this model generalizes 
+
+```{r}
+#Making predictions for the evaluation dataset
+
+test_data <- read.csv("https://raw.githubusercontent.com/sleepysloth12/data621_hw3/main/crime-evaluation-data_modified.csv")
+
+test_data = test_data %>%
+  mutate(tmr=tax/medv,
+         rmlstat=rm/lstat)%>%
+  dplyr::select(-zn, -chas, -rm, -ptratio, -lstat, -medv)
+
+test_data$tmr_transformed = 1/sqrt(test_data$tmr)
+
+test_data$dis_transformed = log(test_data$dis)
+
+test_data <- test_data %>% dplyr::select(-tmr)
+
+
+
+```
+
+```{r}
+pred_class <- predict(step_trans, newdata = test_data, type = "response")
+
+#Setting a threshold of 0.5
+scored_class <- ifelse(pred_class > .5, 1, 0)
+
+test_pred <- test_data %>% cbind(scored_class, pred_class)
+```
+
